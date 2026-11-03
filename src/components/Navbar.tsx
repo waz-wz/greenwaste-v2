@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Play,
   Pause,
-  Wifi,
 } from 'lucide-react';
 import { SystemTelemetry, SystemMode } from '@/types';
 import { cn } from '@/lib/utils';

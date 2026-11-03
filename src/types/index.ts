@@ -61,16 +61,6 @@ export interface ActuatorInfo {
   cycleCount: number;
 }
 
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  category: WasteCategory;
-  confidence: number;
-  targetBin: string;
-  status: 'Sorted' | 'Diverted' | 'Manual Override';
-  itemName: string;
-}
-
 export interface SystemTelemetry {
   isOnline: boolean;
   latencyMs: number;

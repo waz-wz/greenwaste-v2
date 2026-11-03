@@ -6,7 +6,6 @@ import {
   BinStatus,
   DetectionEvent,
   ActuatorInfo,
-  LogEntry,
   SystemTelemetry,
   SystemMode,
 } from '@/types';
@@ -47,7 +46,7 @@ export function useWasteSimulation() {
     cycleCount: 514,
   });
 
-  // Detection
+  // Real-Time Detection
   const [currentDetection, setCurrentDetection] = useState<DetectionEvent | null>({
     id: 'DET-5142',
     category: 'Plastik',
@@ -58,56 +57,6 @@ export function useWasteSimulation() {
     itemName: 'Botol Air Mineral PET 600ml',
   });
 
-  // Logs
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: 'EVT-1098',
-      timestamp: '10:50:18',
-      category: 'Plastik',
-      confidence: 96,
-      targetBin: 'Bin #6 (Plastik)',
-      status: 'Sorted',
-      itemName: 'Botol Air Mineral PET 600ml',
-    },
-    {
-      id: 'EVT-1097',
-      timestamp: '10:49:54',
-      category: 'Kertas',
-      confidence: 92,
-      targetBin: 'Bin #3 (Kertas)',
-      status: 'Sorted',
-      itemName: 'Kertas HVS Bekas Print',
-    },
-    {
-      id: 'EVT-1096',
-      timestamp: '10:49:41',
-      category: 'Organik',
-      confidence: 98,
-      targetBin: 'Bin #5 (Organik)',
-      status: 'Sorted',
-      itemName: 'Sisa Kulit Pisang',
-    },
-    {
-      id: 'EVT-1095',
-      timestamp: '10:49:22',
-      category: 'Logam',
-      confidence: 94,
-      targetBin: 'Bin #4 (Logam)',
-      status: 'Sorted',
-      itemName: 'Kaleng Minuman Soda',
-    },
-    {
-      id: 'EVT-1094',
-      timestamp: '10:49:07',
-      category: 'Kaca',
-      confidence: 95,
-      targetBin: 'Bin #1 (Kaca)',
-      status: 'Sorted',
-      itemName: 'Toples Selai Kaca',
-    },
-  ]);
-
-  const eventCounterRef = useRef<number>(1099);
   const timeoutActionRef = useRef<NodeJS.Timeout | null>(null);
 
   // Recalculate dominant category
@@ -133,7 +82,7 @@ export function useWasteSimulation() {
     }));
   }, [userConveyorSpeed, isEmergencyStopped]);
 
-  // Telemetry jitter
+  // Telemetry jitter (Latency & FPS)
   useEffect(() => {
     if (isEmergencyStopped) return;
 
@@ -150,12 +99,7 @@ export function useWasteSimulation() {
   }, [isEmergencyStopped]);
 
   // Execute sorting action
-  const executeSortingAction = useCallback((
-    category: WasteCategory,
-    itemName: string,
-    confidence: number,
-    isManual: boolean = false
-  ) => {
+  const executeSortingAction = useCallback((category: WasteCategory) => {
     const now = new Date();
     const timeStr = now.toTimeString().split(' ')[0];
     const categoryMeta = WASTE_CATEGORIES[category];
@@ -189,20 +133,7 @@ export function useWasteSimulation() {
       });
     });
 
-    // 3. Prepend Log
-    const newLog: LogEntry = {
-      id: `EVT-${eventCounterRef.current++}`,
-      timestamp: timeStr,
-      category,
-      confidence,
-      targetBin: `Bin #${CATEGORY_KEYS.indexOf(category) + 1} (${category})`,
-      status: isManual ? 'Manual Override' : 'Sorted',
-      itemName,
-    };
-
-    setLogs((prev) => [newLog, ...prev.slice(0, 39)]);
-
-    // 4. Update Telemetry
+    // 3. Update Telemetry
     setTelemetry((prev) => {
       const nextTotal = prev.totalSortedToday + 1;
       const dominantInfo = updateDominantCategory(bins, nextTotal);
@@ -214,7 +145,7 @@ export function useWasteSimulation() {
       };
     });
 
-    // 5. Reset Actuator to Standby
+    // 4. Reset Actuator to Standby
     if (timeoutActionRef.current) clearTimeout(timeoutActionRef.current);
     timeoutActionRef.current = setTimeout(() => {
       setActuator((prev) => ({
@@ -228,12 +159,11 @@ export function useWasteSimulation() {
 
   // Main simulation loop
   useEffect(() => {
-    // Stop sorting loop if user set speed to 0, or emergency, or manual, or paused
     if (mode !== 'AUTO' || isEmergencyStopped || isPaused || userConveyorSpeed <= 0) {
       return;
     }
 
-    // Interval inversely proportional to conveyor speed (e.g. 50 cm/s = faster, 10 cm/s = slower)
+    // Interval inversely proportional to conveyor speed
     const baseInterval = Math.max(1200, Math.round(75000 / userConveyorSpeed));
 
     const simInterval = setInterval(() => {
@@ -278,12 +208,7 @@ export function useWasteSimulation() {
       setCurrentDetection(detection);
 
       setTimeout(() => {
-        executeSortingAction(
-          detection.category,
-          detection.itemName,
-          detection.confidence,
-          false
-        );
+        executeSortingAction(detection.category);
       }, 700);
     }, baseInterval);
 
@@ -345,7 +270,7 @@ export function useWasteSimulation() {
       itemName: `[Manual] ${randomItem.name}`,
     });
 
-    executeSortingAction(category, `[Manual] ${randomItem.name}`, confidence, true);
+    executeSortingAction(category);
   };
 
   // Empty Bin
@@ -364,10 +289,6 @@ export function useWasteSimulation() {
     );
   };
 
-  const clearLogs = () => {
-    setLogs([]);
-  };
-
   return {
     mode,
     toggleMode,
@@ -383,8 +304,6 @@ export function useWasteSimulation() {
     emptyBin,
     actuator,
     currentDetection,
-    logs,
-    clearLogs,
     manualTriggerBin,
   };
 }
